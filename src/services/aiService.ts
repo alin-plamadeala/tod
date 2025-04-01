@@ -1,21 +1,12 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import * as vscode from 'vscode';
-import { PromptParams, createPromptParamsFromLanguage, reasonPrompt, codeGenPrompt } from './prompt';
+import {Message} from "./promptService";
 
 export interface AIConfig {
     model: string;
     temperature: number;
     apiKey: string;
-}
-
-export interface AIPromptParams {
-    language: string;
-    testFile: string;
-    code?: string;
-    error?: string;
-    reasoning?: string;
-    input?: string;
 }
 
 export class AIService {
@@ -64,23 +55,18 @@ export class AIService {
     }
 
     public async generateImplementation(
-        testCode: string,
-        language: string,
-        userFeedback: string = '',
-        previousImplementation: string = '',
-        previousReasoning: string = ''
+        messages: Message[]
     ): Promise<string> {
-        const prompt = this.generateCodePrompt(testCode, language,userFeedback, previousImplementation, previousReasoning);
-        this.log(`Generating implementation with prompt length: ${prompt.length}`);
+        this.log(`Generating implementation with ${messages.length} message. Total content len: ${messages.reduce((acc, m) => acc + m.content.length, 0)}`);
 
         try {
             let result: string;
             if (this.openai) {
                 this.log('Using OpenAI for implementation generation');
-                result = await this.generateWithOpenAI(prompt);
+                result = await this.generateWithOpenAI(messages);
             } else if (this.anthropic) {
                 this.log('Using Anthropic for implementation generation');
-                result = await this.generateWithAnthropic(prompt);
+                result = await this.generateWithAnthropic(messages);
             } else {
                 throw new Error('No AI client initialized');
             }
@@ -92,98 +78,7 @@ export class AIService {
         }
     }
 
-    public async generateReasoning(params: {
-        language: string;
-        testFile: string;
-        code: string;
-        error: string;
-        previousImplementation?: string;
-        previousReasoning?: string;
-    }): Promise<string> {
-        const prompt = this.generateReasoningPrompt(params);
-        this.log(`Generating reasoning with prompt length: ${prompt.length}`);
-
-        try {
-            let result: string;
-            if (this.openai) {
-                this.log('Using OpenAI for reasoning generation');
-                result = await this.generateWithOpenAI(prompt);
-            } else if (this.anthropic) {
-                this.log('Using Anthropic for reasoning generation');
-                result = await this.generateWithAnthropic(prompt);
-            } else {
-                throw new Error('No AI client initialized');
-            }
-            this.log('Successfully generated reasoning. Length: ' + result.length);
-            return result;
-        } catch (error) {
-            this.log('Error generating reasoning', error);
-            throw error;
-        }
-    }
-
-    private generateCodePrompt(
-        testCode: string,
-        language: string,
-        userFeedback: string = '',
-        previousImplementation: string = '',
-        previousReasoning: string = ''
-    ): string {
-        const params = createPromptParamsFromLanguage(language);
-        params.testFile = testCode;
-        params.code = previousImplementation;
-        params.reasoning = previousReasoning;
-        params.userFeedback = userFeedback;
-        params.motivation = `You are a Senior Software Engineer
-
-When you see a test failing, you fix it, every time, first try
-And look, this test provided is failing, but you never worry, you can fix it
-
-You are an engineer that only responds with code. No docs. No comments. Only code.
-
-You don't respond with Markdown EVER.  Its ONLY code.
-No XML
-No Markdown
-
-As a Sr Engineer you pay special attention to the errors and the type mismatches that can arise in the code.
-<test>
-__TEST_FILE__
-</test>
-
-You should also take into consideration the following inputs:
-<inputs>
-__USER_FEEDBACK__
-</inputs>
-`;
-
-        const prompt = codeGenPrompt(params, params.motivation);
-
-        this.log(`Code generation prompt: ${prompt}`);
-        return prompt;
-    }
-
-    private generateReasoningPrompt(params: {
-        language: string;
-        testFile: string;
-        code: string;
-        error: string;
-        previousImplementation?: string;
-        previousReasoning?: string;
-    }): string {
-        const promptParams = createPromptParamsFromLanguage(params.language);
-        promptParams.testFile = params.testFile;
-        promptParams.code = params.code;
-        promptParams.error = params.error;
-        promptParams.reasoning = params.previousReasoning || '';
-        promptParams.input = params.previousImplementation || '';
-
-        const prompt = reasonPrompt(promptParams);
-
-        this.log(`Reasoning prompt: ${prompt}`);
-        return prompt;
-    }
-
-    private async generateWithOpenAI(prompt: string): Promise<string> {
+    private async generateWithOpenAI(messages: Message[]): Promise<string> {
         if (!this.openai) {
             this.log('Error: OpenAI client not initialized');
             throw new Error('OpenAI client not initialized');
@@ -200,13 +95,16 @@ __USER_FEEDBACK__
             const startTime = Date.now();
 
 
-            // TODO: if o1 replace system with developer
+            let passedMessages: OpenAI.ChatCompletionMessageParam[] = messages;
+            if (this.config.model.startsWith('o1')) {
+                passedMessages = messages.map(m => m.role === 'system' ? ({...m, role: 'developer'}) : m);
+            }
 
             const completion = await this.openai.chat.completions.create({
                 model: this.config.model,
-                messages: [{ role: 'user', content: prompt }],
+                messages: passedMessages,
                 temperature: this.config.temperature,
-            }, { signal: controller.signal });
+            }, {signal: controller.signal});
 
             const duration = Date.now() - startTime;
             this.log(`OpenAI API call completed in ${duration}ms`);
@@ -220,7 +118,7 @@ __USER_FEEDBACK__
         }
     }
 
-    private async generateWithAnthropic(prompt: string): Promise<string> {
+    private async generateWithAnthropic(messages: Message[]): Promise<string> {
         if (!this.anthropic) {
             this.log('Error: Anthropic client not initialized');
             throw new Error('Anthropic client not initialized');
@@ -235,12 +133,28 @@ __USER_FEEDBACK__
 
         try {
             const startTime = Date.now();
+
+
+            const systemMessage = messages.find(m => m.role === 'system')?.content;
+
+            if (!systemMessage) {
+                this.log("No system message found in messages");
+                throw new Error('No system message found in messages');
+            }
+
+            const passedMessages: Anthropic.MessageParam[] = messages.filter(m => m.role !== 'system').map(m => ({
+                role: m.role,
+                content: m.content
+            }) as (Message & { role: Exclude<Message['role'], 'system'> }));
+
+
             const message = await this.anthropic.messages.create({
                 model: this.config.model,
                 max_tokens: 4096,
-                messages: [{ role: 'user', content: prompt }],
+                system: systemMessage,
+                messages: passedMessages,
                 temperature: this.config.temperature,
-            }, { signal: controller.signal });
+            }, {signal: controller.signal});
 
             const duration = Date.now() - startTime;
             this.log(`Anthropic API call completed in ${duration}ms`);
