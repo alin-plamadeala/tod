@@ -1,0 +1,142 @@
+body {
+    padding: 20px;
+    font-family: var(--vscode-font-family);
+    color: var(--vscode-foreground);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--vscode-input-foreground);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+select {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+}
+
+input:focus, select:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+}
+
+button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 8px 16px;
+    margin: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+}
+
+.status-message {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    display: none;
+}
+
+.status-message.success {
+    background-color: var(--vscode-testing-iconPassed);
+    color: var(--vscode-foreground);
+    display: block;
+}
+
+.status-message.error {
+    background-color: var(--vscode-testing-iconFailed);
+    color: var(--vscode-foreground);
+    display: block;
+}
+
+.status-message.info {
+    background-color: var(--vscode-testing-iconQueued);
+    color: var(--vscode-foreground);
+    display: block;
+}
+
+.history-container,
+.reasoning-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+}
+
+.history-item {
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 4px;
+    background-color: var(--vscode-editor-background);
+}
+
+.history-item.success {
+    border-left: 4px solid var(--vscode-testing-iconPassed);
+}
+
+.history-item.failure {
+    border-left: 4px solid var(--vscode-testing-iconFailed);
+}
+
+.test-output {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+
+.test-error {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: var(--vscode-testing-iconFailed);
+    color: var(--vscode-foreground);
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+
+.test-reasoning {
+    margin: 10px 0;
+    padding: 10px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+
+h3 {
+    margin-top: 0;
+    color: var(--vscode-foreground);
+}
+
+h4 {
+    margin: 0 0 10px 0;
+    color: var(--vscode-foreground);
+} 

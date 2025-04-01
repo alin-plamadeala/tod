@@ -1,0 +1,132 @@
+{
+  "name": "test-only-development",
+  "displayName": "AI-Enabled TDD",
+  "description": "AI-powered Test-Driven Development tool",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.98.0"
+  },
+  "categories": [
+    "Other",
+    "Testing"
+  ],
+  "activationEvents": [
+    "onView:aiTddView",
+    "onCommand:test-only-development.openTDDView",
+    "onCommand:test-only-development.runTDD"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "test-only-development.openTDDView",
+        "title": "Open AI TDD View"
+      },
+      {
+        "command": "test-only-development.runTDD",
+        "title": "Run AI TDD Process"
+      },
+      {
+        "command": "ai-tdd.start",
+        "title": "Start AI TDD Process"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ai-tdd-explorer",
+          "title": "AI TDD",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "ai-tdd-explorer": [
+        {
+          "type": "webview",
+          "id": "aiTddView",
+          "name": "AI TDD"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI TDD",
+      "properties": {
+        "aiTdd.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for the AI service"
+        },
+        "aiTdd.model": {
+          "type": "string",
+          "default": "gpt-4",
+          "description": "AI model to use",
+          "enum": [
+            "gpt-4",
+            "gpt-3.5-turbo",
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229",
+            "claude-3-haiku-20240307",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-sonnet-20240620",
+            "claude-3-5-haiku-20241022",
+            "claude-3-7-sonnet-20250219"
+          ]
+        },
+        "aiTdd.temperature": {
+          "type": "number",
+          "default": 0.3,
+          "description": "Temperature for AI generation",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aiTdd.nodePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Node.js executable. If not specified, uses the Node.js running the extension."
+        },
+        "aiTdd.implementationPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the implementation file. If not specified, will be auto-generated based on the test file name."
+        },
+        "aiTdd.maxIterations": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of TDD iterations to run before giving up."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.98.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "eslint": "^9.21.0",
+    "esbuild": "^0.25.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.7.3",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  },
+  "dependencies": {
+    "openai": "^4.28.0",
+    "@anthropic-ai/sdk": "^0.18.0"
+  }
+}
