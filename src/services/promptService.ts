@@ -79,7 +79,7 @@ The code will be in ${this.programmingLanguage} and the tests are running using 
     }
 
 
-    public getConversation(): Message[] {
+    public getMessages(): Message[] {
         const conversationLength = this.conversation.length;
 
         //  TODO: truncate conversation if it is too long

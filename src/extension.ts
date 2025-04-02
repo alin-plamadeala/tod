@@ -1,13 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { AIService, AIConfig, AIPromptParams } from './services/aiService';
-import { TestService, TestResult, TestHistory } from './services/testService';
+import {AIService, AIConfig,} from './services/aiService';
+import {TestService, TestResult} from './services/testService';
+import {TddConversationPrompt} from "./services/promptService";
 
-interface TDDConfig {
-    language: string;
-    testFile: string;
-}
+
 
 export class TDDViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'aiTddView';
@@ -15,16 +13,14 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
     private disposables: vscode.Disposable[] = [];
     private readonly maxIterations: number;
     private outputChannel: vscode.OutputChannel;
-    private readonly workspaceRoot: string;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly aiService: AIService,
-        private readonly testService: TestService
+        private readonly testService: TestService,
     ) {
         this.maxIterations = vscode.workspace.getConfiguration('aiTdd').get<number>('maxIterations') || 5;
         this.outputChannel = vscode.window.createOutputChannel('AI TDD - extension');
-        this.workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
     }
 
     private log(message: string, error?: any) {
@@ -59,6 +55,13 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
             await this.handleWebviewMessage(data);
         });
 
+        vscode.window.onDidChangeActiveColorTheme((theme) => {
+            this._view?.webview.postMessage({
+                type: 'themeChanged',
+                theme: theme.kind === vscode.ColorThemeKind.Dark ? 'dark' : 'light'
+            });
+        });
+
         console.log('Webview view resolved successfully');
     }
 
@@ -75,11 +78,14 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                 break;
             case 'runTDD':
                 console.log('Running TDD process...');
-                await this.runTDDProcess(message.testFile, message.implementationFile, message.customPrompt);
+                await this.runTDDProcess(message.testFile, message.implementationFile);
                 break;
-            case 'showTestHistory':
-                console.log('Showing test history...');
-                this.showTestHistory();
+            case 'requestTheme':
+                const theme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? 'dark' : 'light';
+                this._view?.webview.postMessage({
+                    type: 'themeChanged',
+                    theme: theme
+                });
                 break;
             default:
                 console.log('Unknown message type:', message.type);
@@ -111,7 +117,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
     private async selectImplementationFile() {
         console.log('Finding implementation files...');
-        const files = await vscode.workspace.findFiles('**/*.{js,ts,py}');
+        const files = await vscode.workspace.findFiles('**/*.ts', 'node_modules');
         console.log('Found implementation files:', files);
         const fileItems = files.map(file => ({
             label: vscode.workspace.asRelativePath(file),
@@ -132,164 +138,156 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+
     private async runTDDProcess(
         testFile: string,
         implementationFile: string,
-        initialFeedback?: string
     ): Promise<void> {
         try {
             const language = this.getLanguageFromFile(testFile);
+            const testRunner = this.getTestRunnerFromLanguage(language);
             const testContent = await vscode.workspace.fs.readFile(vscode.Uri.file(testFile));
             const testCode = new TextDecoder().decode(testContent);
 
-            // Verify implementation file exists and is writable
-            try {
-                await vscode.workspace.fs.stat(vscode.Uri.file(implementationFile));
-            } catch (error) {
-                throw new Error(`Implementation file ${implementationFile} does not exist or is not accessible`);
-            }
+            const conversation = new TddConversationPrompt(language, testRunner);
 
-            // Open the implementation file
+            this.log("Starting TDD process");
+
+            // Open the implementation file and the test file side by side
             const doc = await vscode.workspace.openTextDocument(implementationFile);
-            await vscode.window.showTextDocument(doc, { preview: true });
+            await vscode.window.showTextDocument(doc, {preview: false, viewColumn: vscode.ViewColumn.Two});
 
-            let iteration = 0;
-            let previousImplementation = '';
-            let previousReasoning = '';
-            let userFeedback = initialFeedback || '';
+            const testDoc = await vscode.workspace.openTextDocument(testFile);
+            await vscode.window.showTextDocument(testDoc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.One
+            });
 
-            while (iteration < this.maxIterations) {
-                this.log(`Starting iteration ${iteration + 1} of ${this.maxIterations}`);
+            const d = vscode.workspace.onDidSaveTextDocument(async (event) => {
+                // Check if the changed document is the test file you're interested in
+                const filePath = event.fileName;
+                this.log('File changed:', filePath);
 
-                // Generate implementation
-                const implementation = await this.aiService.generateImplementation(
-                    testCode,
-                    language,
-                    userFeedback,
-                    previousImplementation,
-                    previousReasoning
-                );
+                if (filePath === testFile) {
+                    // Verify implementation file exists and is writable
+                    try {
+                        await vscode.workspace.fs.stat(vscode.Uri.file(implementationFile));
+                    } catch (error) {
+                        throw new Error(`Implementation file ${implementationFile} does not exist or is not accessible`);
+                    }
 
-                // Write implementation to the selected file
-                await vscode.workspace.fs.writeFile(
-                    vscode.Uri.file(implementationFile),
-                    new TextEncoder().encode(implementation)
-                );
+                    conversation.addTestFileMessage(testCode);
 
-                // Run tests against the selected implementation file
-                const testResult = await this.testService.runTests(testFile, implementationFile);
-                this.log(`Test result: ${testResult.success ? 'Passed' : 'Failed'}`);
+                    let testResult: TestResult | undefined;
+                    let iteration = 0;
 
-                if (testResult.success) {
-                    this.log('Tests passed!');
-                    previousImplementation = implementation;
-                } else {
-                    // Generate reasoning for failure
-                    const reasoning = await this.aiService.generateReasoning({
-                        language,
-                        testFile: testCode,
-                        code: implementation,
-                        error: testResult.error || '',
-                        previousImplementation,
-                        previousReasoning
-                    });
+                    while (testResult?.success !== true && iteration < this.maxIterations) {
+                        iteration++;
 
-                    previousImplementation = implementation;
-                    previousReasoning = reasoning;
+                        this.log(`Iteration ${iteration} of TDD process`);
+
+                        await this.runCodeGeneration(conversation, implementationFile);
+                        testResult = await this.runTests(testFile, implementationFile);
+
+                        conversation.addTestRunResult(testResult);
+                    }
+
+
                 }
+            });
 
-                // Always show feedback section and wait for user input
-                const newFeedback = await this.showFeedbackAndWait(testResult, previousReasoning, iteration);
+            this.disposables.push(d);
 
-                // After feedback, check if we should continue
-                if (testResult.success && !newFeedback) {
-                    break;
-                }
 
-                userFeedback += `* ${newFeedback}\n`;
-
-                iteration++;
-            }
-
-            if (iteration >= this.maxIterations) {
-                this.log('Reached maximum iterations');
-            }
         } catch (error) {
             this.log('Error in TDD process', error);
             throw error;
         }
     }
 
-    private async showFeedbackAndWait(
-        testResult: TestResult, 
-        previousReasoning: string,
-        iteration: number
-    ): Promise<string> {
-        return new Promise<string>((resolve, reject) => {
-            const disposable = this._view?.webview.onDidReceiveMessage(
-                async (message) => {
-                    switch (message.type) {
-                        case 'continueTDD':
-                            this.log('User provided feedback, continuing TDD process');
-                            resolve(message.feedback || '');
-                            break;
-                        case 'stopTDD':
-                            this.log('User stopped TDD process');
-                            reject(new Error('User stopped TDD process'));
-                            break;
-                    }
-                }
-            );
 
-            if (disposable) {
-                this.disposables.push(disposable);
+    private async runTests(testFile: string, implementationFile: string) {
+        try {
+            this._view?.webview.postMessage({
+                type: 'testStarted',
+            });
+
+            const result = await this.testService.runTests(testFile, implementationFile);
+            this.log(`Test result: ${result.success ? 'Passed' : 'Failed'}`);
+            if (result.success) {
+                this._view?.webview.postMessage({
+                    type: 'testPassed',
+                });
+            } else {
+                this._view?.webview.postMessage({
+                    type: 'testFailed',
+                    output: result.output,
+                    error: result.error
+                });
             }
 
-            // Send message to webview to show feedback section
+            return result;
+        } catch (e) {
             this._view?.webview.postMessage({
-                type: 'iterationComplete',
-                success: testResult.success,
-                testResult: testResult,
-                reasoning: previousReasoning,
-                iteration: iteration + 1,
-                maxIterations: this.maxIterations
+                type: 'testFailed',
+                error: (e as Error).message,
             });
-        });
-    }
-
-    private getLanguageFromFile(filePath: string): string {
-        const extension = path.extname(filePath).toLowerCase();
-        switch (extension) {
-            case '.js':
-            case '.jsx':
-                return 'JavaScript';
-            case '.ts':
-            case '.tsx':
-                return 'TypeScript';
-            case '.py':
-                return 'Python';
-            default:
-                return 'JavaScript';
+            throw e;
         }
     }
 
-    private async showTestHistory() {
-        const history = this.testService.getHistory();
+    private async runCodeGeneration(conversation: TddConversationPrompt, implementationFile: string) {
         this._view?.webview.postMessage({
-            type: 'testHistory',
-            history
+            type: 'codeGenerationRunning',
         });
+
+        try {
+            // Generate implementation
+            const implementation = await this.aiService.generateImplementation(
+                conversation.getMessages()
+            );
+
+            // Write implementation to the selected file
+            await vscode.workspace.fs.writeFile(
+                vscode.Uri.file(implementationFile),
+                new TextEncoder().encode(implementation)
+            );
+            this._view?.webview.postMessage({
+                type: 'codeGenerationCompleted',
+                code: implementation,
+            });
+        } catch (e) {
+            this._view?.webview.postMessage({
+                type: 'codeGenerationFailed',
+                error: (e as Error).message,
+            });
+            throw e;
+        }
     }
 
-    private async updateAIConfig(model: string, apiKey: string) {
-        const config: AIConfig = {
-            model,
-            temperature: 0.3, // Default temperature
-            apiKey
-        };
-        this.aiService.updateConfig(config);
-        vscode.workspace.getConfiguration('aiTdd').update('model', model);
-        vscode.workspace.getConfiguration('aiTdd').update('apiKey', apiKey);
+    private getLanguageFromFile(filePath: string): 'TypeScript' {
+        const extension = path.extname(filePath).toLowerCase();
+        switch (extension) {
+            // case '.js':
+            // case '.jsx':
+            //     return 'JavaScript';
+            case '.ts':
+            case '.tsx':
+                return 'TypeScript';
+            // case '.py':
+            //     return 'Python';
+            default:
+                throw new Error(`Unknown language for file: ${filePath}`);
+        }
+    }
+
+    private getTestRunnerFromLanguage(language: string): 'vitest' {
+        switch (language) {
+            case 'TypeScript':
+                return 'vitest';
+            default:
+                throw new Error(`Unknown test runner for language: ${language}`);
+        }
     }
 
     private getWebviewContent(webview: vscode.Webview): string {
@@ -333,7 +331,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Activating AI TDD extension...');
-    
+
     // Get AI configuration
     const config = vscode.workspace.getConfiguration('aiTdd');
     const aiConfig: AIConfig = {
@@ -348,7 +346,7 @@ export function activate(context: vscode.ExtensionContext) {
         new AIService(aiConfig),
         new TestService(workspaceRoot)
     );
-    
+
     // Register the view provider
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(TDDViewProvider.viewType, provider)
@@ -358,10 +356,10 @@ export function activate(context: vscode.ExtensionContext) {
     let disposable = vscode.commands.registerCommand('test-only-development.openTDDView', () => {
         console.log('Opening AI TDD view...');
         vscode.commands.executeCommand('workbench.view.extension.ai-tdd-explorer');
-	});
+    });
 
-	context.subscriptions.push(disposable);
-    
+    context.subscriptions.push(disposable);
+
     console.log('AI TDD extension activated successfully');
 }
 
