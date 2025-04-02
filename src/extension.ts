@@ -6,7 +6,6 @@ import {TestService, TestResult} from './services/testService';
 import {TddConversationPrompt} from "./services/promptService";
 
 
-
 export class TDDViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'aiTddView';
     public _view?: vscode.WebviewView;
@@ -148,8 +147,9 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
             const testRunner = this.getTestRunnerFromLanguage(language);
             const testContent = await vscode.workspace.fs.readFile(vscode.Uri.file(testFile));
             const testCode = new TextDecoder().decode(testContent);
+            const session = new Date().toISOString().replace(/[:.]/g, '-');
 
-            const conversation = new TddConversationPrompt(language, testRunner);
+            const conversation = new TddConversationPrompt(language, testRunner, session);
 
             this.log("Starting TDD process");
 
@@ -186,13 +186,13 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
                         this.log(`Iteration ${iteration} of TDD process`);
 
-                        await this.runCodeGeneration(conversation, implementationFile);
-                        testResult = await this.runTests(testFile, implementationFile);
+                        const implementation = await this.runCodeGeneration(conversation, implementationFile);
+                        conversation.addImplementationMessage(implementation);
 
+                        testResult = await this.runTests(testFile, implementationFile);
                         conversation.addTestRunResult(testResult);
                     }
-
-
+                    conversation.saveConversation();
                 }
             });
 
@@ -256,6 +256,8 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                 type: 'codeGenerationCompleted',
                 code: implementation,
             });
+
+            return implementation;
         } catch (e) {
             this._view?.webview.postMessage({
                 type: 'codeGenerationFailed',
@@ -327,7 +329,14 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
         return htmlContent;
     }
+
+    dispose() {
+        this.disposables.forEach(disposable => disposable.dispose());
+        this.outputChannel.dispose();
+    }
 }
+
+let provider: TDDViewProvider;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Activating AI TDD extension...');
@@ -341,7 +350,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
-    const provider = new TDDViewProvider(
+    provider = new TDDViewProvider(
         context.extensionUri,
         new AIService(aiConfig),
         new TestService(workspaceRoot)
@@ -365,4 +374,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     console.log('Deactivating AI TDD extension...');
+
+    // Dispose of all disposables
+    if (provider) {
+        provider.dispose();
+    }
+
+    console.log('AI TDD extension deactivated successfully');
 }

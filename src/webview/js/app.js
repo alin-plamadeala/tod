@@ -3,6 +3,7 @@ class TDDApp {
         this.vscode = acquireVsCodeApi();
         this.setupEventListeners();
         this.history = [];
+        this.tddStarted = false;
     }
 
     requestTheme() {
@@ -158,6 +159,10 @@ class TDDApp {
     }
 
     runTDD() {
+        if (this.tddStarted) {
+            this.showStatus('TDD process already started. Update your test file to initiate the code generation', 'error');
+            return;
+        }
         console.log('Running TDD process');
         const testFile = document.getElementById('testFile').value;
         const implementationFile = document.getElementById('implementationFile').value;
@@ -183,6 +188,12 @@ class TDDApp {
             testFile,
             implementationFile,
         });
+
+        this.tddStarted = true;
+        const runTDDBtn = document.getElementById('runTDD');
+        if (runTDDBtn) {
+            runTDDBtn.disabled = true;
+        }
     }
 
     showStatus(message, type = 'info') {
@@ -192,7 +203,7 @@ class TDDApp {
         }
 
         statusElement.textContent = message;
-        statusElement.className = `badge badge-${type} badge-lg`;
+        statusElement.className = `alert alert-${type}`;
     }
 }
 

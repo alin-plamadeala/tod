@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import {TestResult} from "./testService";
+import fs from "fs";
+import path from "path";
 
 
 export type Message = {
@@ -22,15 +24,19 @@ No Markdown
 
 As a Sr Engineer you pay special attention to the errors and the type mismatches that can arise in the code.`;
 
-class TddConversationPrompt {
+export class TddConversationPrompt {
     outputChannel: vscode.OutputChannel;
     conversation: Message[] = [];
+    dataDir: string;
 
-    constructor(public programmingLanguage: 'TypeScript', public testRunner: 'vitest') {
+    constructor(public programmingLanguage: 'TypeScript', public testRunner: 'vitest', public sessionName: string) {
         this.outputChannel = vscode.window.createOutputChannel('TddConversationPrompt');
         this.log('Initializing AI Service...');
 
         this.addInitialPrompt();
+        const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
+        this.dataDir = `${workspaceRoot}/.vscode/ai-tdd/`;
+        this.ensureDataDir();
     }
 
     private addInitialPrompt() {
@@ -82,12 +88,38 @@ The code will be in ${this.programmingLanguage} and the tests are running using 
     public getMessages(): Message[] {
         const conversationLength = this.conversation.length;
 
-        //  TODO: truncate conversation if it is too long
+        const truncSize = 2;
 
         const messagesLength = this.conversation.map(m => m.content.length).reduce((a, b) => a + b, 0);
-
         this.log(`Conversation length: ${conversationLength}, total characters: ${messagesLength}`);
-        return this.conversation;
+
+        const lastTestFileMessages = this.conversation.filter(m => m.type === 'testFile').slice(-truncSize);
+        const lastImplementationMessages = this.conversation.filter(m => m.type === 'implementation').slice(-truncSize);
+        const lastTestResultMessages = this.conversation.filter(m => m.type === 'testResult').slice(-truncSize);
+
+        const filteredMessages = this.conversation.filter(m => m.role === 'system' || [...lastTestFileMessages, ...lastImplementationMessages, ...lastTestResultMessages].includes(m));
+
+        this.log(`Filtered conversation length: ${filteredMessages.length}, total characters: ${filteredMessages.map(m => m.content.length).reduce((a, b) => a + b, 0)}`);
+
+        return filteredMessages;
+    }
+
+    private ensureDataDir() {
+        try {
+            if (!fs.existsSync(this.dataDir)) {
+                this.log(`Creating data directory: ${this.dataDir}`);
+                fs.mkdirSync(this.dataDir, {recursive: true});
+            }
+        } catch (error) {
+            this.log('Error creating data directory', error);
+            throw error;
+        }
+    }
+
+    public saveConversation() {
+        const conversationPath = path.join(this.dataDir, `${this.sessionName}.json`);
+        fs.writeFileSync(conversationPath, JSON.stringify(this.conversation, null, 2));
+        this.log(`Conversation saved to ${conversationPath}`);
     }
 
 }
