@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import {AIService, AIConfig,} from './services/aiService';
 import {TestService, TestResult} from './services/testService';
 import {TddConversationPrompt} from "./services/promptService";
+import {generateRequirementCommentBlockSnippet} from "./services/commentBlockService";
 
 
 export class TDDViewProvider implements vscode.WebviewViewProvider {
@@ -145,8 +146,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
         try {
             const language = this.getLanguageFromFile(testFile);
             const testRunner = this.getTestRunnerFromLanguage(language);
-            const testContent = await vscode.workspace.fs.readFile(vscode.Uri.file(testFile));
-            const testCode = new TextDecoder().decode(testContent);
+
             const session = new Date().toISOString().replace(/[:.]/g, '-');
 
             const conversation = new TddConversationPrompt(language, testRunner, session);
@@ -158,10 +158,25 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
             await vscode.window.showTextDocument(doc, {preview: false, viewColumn: vscode.ViewColumn.Two});
 
             const testDoc = await vscode.workspace.openTextDocument(testFile);
-            await vscode.window.showTextDocument(testDoc, {
+            const editor = await vscode.window.showTextDocument(testDoc, {
                 preview: false,
                 viewColumn: vscode.ViewColumn.One
             });
+
+            // Find the position of the last import
+            const lines = testDoc.getText().split('\n');
+            const lastImportIndex = lines.reduceRight((lastIndex, line, index) => {
+                if (lastIndex === -1 && line.startsWith('import ')) {
+                    return index;
+                }
+                return lastIndex;
+            }, -1);
+
+
+            // Insert the comment block below the last import in editor
+            const commentBlock = generateRequirementCommentBlockSnippet();
+            editor.insertSnippet(commentBlock, new vscode.Position(lastImportIndex + 1, 0));
+
 
             const d = vscode.workspace.onDidSaveTextDocument(async (event) => {
                 // Check if the changed document is the test file you're interested in
@@ -175,7 +190,8 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                     } catch (error) {
                         throw new Error(`Implementation file ${implementationFile} does not exist or is not accessible`);
                     }
-
+                    const testContent = await vscode.workspace.fs.readFile(vscode.Uri.file(testFile));
+                    const testCode = new TextDecoder().decode(testContent);
                     conversation.addTestFileMessage(testCode);
 
                     let testResult: TestResult | undefined;

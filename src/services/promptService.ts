@@ -2,11 +2,12 @@ import * as vscode from "vscode";
 import {TestResult} from "./testService";
 import fs from "fs";
 import path from "path";
+import {extractRequirementsFromTestFile, stripRequirementCommentsFromTestFile} from "./commentBlockService";
 
 
 export type Message = {
     role: 'system' | 'user' | 'assistant';
-    type: 'testFile' | 'implementation' | 'testResult' | 'system'
+    type: 'testFile' | 'implementation' | 'testResult' | 'system' | 'requirements';
     content: string;
 }
 
@@ -60,10 +61,26 @@ The code will be in ${this.programmingLanguage} and the tests are running using 
     public addTestFileMessage(testFile: string) {
         const isFirstTestFile = this.conversation.filter(m => m.type === 'testFile').length === 0;
 
+        const requirements = extractRequirementsFromTestFile(testFile);
+        const cleanTest = stripRequirementCommentsFromTestFile(testFile);
+
+
+        const message = (isFirstTestFile ? 'This is the test file content: \n' : 'I have updated the test file content. Now it looks like this:\n') + `<TEST_FILE_CONTENT>${cleanTest}</TEST_FILE_CONTENT>`;
+
+        if (requirements.length > 0) {
+            this.conversation.push({
+                role: 'user',
+                type: 'requirements',
+                content: `Please pay special attention to the following requirements/constraints: ${requirements.map(r => `<REQUIREMENT>${r}</REQUIREMENT>`).join(', ')}`
+            });
+        }
+
+        this.log(`Adding Requirement: ${requirements}`);
+
         this.conversation.push({
             role: 'user',
             type: 'testFile',
-            content: (isFirstTestFile ? 'This is the test file content' : 'I have updated the test file content. Now it looks like this:') + `<TEST_FILE_CONTENT>${testFile}</TEST_FILE_CONTENT>`
+            content: message
         });
     }
 
@@ -96,8 +113,9 @@ The code will be in ${this.programmingLanguage} and the tests are running using 
         const lastTestFileMessages = this.conversation.filter(m => m.type === 'testFile').slice(-truncSize);
         const lastImplementationMessages = this.conversation.filter(m => m.type === 'implementation').slice(-truncSize);
         const lastTestResultMessages = this.conversation.filter(m => m.type === 'testResult').slice(-truncSize);
+        const lastRequirementMessages = this.conversation.filter(m => m.type === 'requirements').slice(-truncSize);
 
-        const filteredMessages = this.conversation.filter(m => m.role === 'system' || [...lastTestFileMessages, ...lastImplementationMessages, ...lastTestResultMessages].includes(m));
+        const filteredMessages = this.conversation.filter(m => m.role === 'system' || [...lastTestFileMessages, ...lastImplementationMessages, ...lastTestResultMessages, ...lastRequirementMessages].includes(m));
 
         this.log(`Filtered conversation length: ${filteredMessages.length}, total characters: ${filteredMessages.map(m => m.content.length).reduce((a, b) => a + b, 0)}`);
 
