@@ -172,15 +172,4 @@ export class AIService {
             throw error;
         }
     }
-
-    public updateConfig(config: AIConfig) {
-        this.log('Updating AI configuration', {
-            oldModel: this.config.model,
-            newModel: config.model,
-            oldTemp: this.config.temperature,
-            newTemp: config.temperature
-        });
-        this.config = config;
-        this.initializeClients();
-    }
-} 
+}

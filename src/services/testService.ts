@@ -83,10 +83,6 @@ export class TestService {
         this.log(`History saved to ${historyPath}`);
     }
 
-    public getHistory(): TestHistory {
-        return this.history;
-    }
-
     public async runTests(testFile: string, implementationFile: string): Promise<TestResult> {
         this.log(`Running tests for ${testFile} with implementation ${implementationFile}`);
 
