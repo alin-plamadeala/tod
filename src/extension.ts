@@ -43,7 +43,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
         // Set webview options
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [this._extensionUri]
+            localResourceRoots: [this._extensionUri],
         };
 
         // Set the webview's HTML content
@@ -374,7 +374,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the view provider
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(TDDViewProvider.viewType, provider)
+        vscode.window.registerWebviewViewProvider(TDDViewProvider.viewType, provider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true,
+                }
+            })
     );
 
     // Register the command to open the view
