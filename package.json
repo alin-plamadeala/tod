@@ -3,6 +3,7 @@
   "displayName": "AI-Enabled TDD",
   "description": "AI-powered Test-Driven Development tool",
   "version": "0.0.1",
+  "repository": "https://github.com/alin-plamadeala/tod",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -116,6 +117,7 @@
     "@typescript-eslint/parser": "^8.25.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.3.2",
     "esbuild": "^0.25.0",
     "eslint": "^9.21.0",
     "npm-run-all": "^4.1.5",
