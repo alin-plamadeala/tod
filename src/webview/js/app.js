@@ -11,6 +11,19 @@ class TDDApp {
     }
 
     setupEventListeners() {
+        // Handle button clicks
+        const selectTestFileBtn = document.getElementById('selectTestFile');
+        const selectImplementationFileBtn = document.getElementById('selectImplementationFile');
+        const runTDDBtn = document.getElementById('runTDD');
+        const pauseTddCheckbox = document.getElementById('pauseCheckbox');
+        console.log('Found buttons:', {
+            selectTestFileBtn: !!selectTestFileBtn,
+            selectImplementationFileBtn: !!selectImplementationFileBtn,
+            runTDDBtn: !!runTDDBtn,
+            pauseTddCheckbox: !!pauseTddCheckbox,
+        });
+
+
         console.log('Setting up event listeners...');
         // Handle messages from the extension
         window.addEventListener('message', event => {
@@ -77,19 +90,15 @@ class TDDApp {
                         type: 'testPassed',
                     });
                     break;
+                case 'updatePauseToggle':
+                    console.log('Updating pause toggle:', event);
+                    if (pauseTddCheckbox) {
+                        pauseTddCheckbox.checked = event.data.value;
+                    }
+                    break;
             }
         });
 
-        // Handle button clicks
-        const selectTestFileBtn = document.getElementById('selectTestFile');
-        const selectImplementationFileBtn = document.getElementById('selectImplementationFile');
-        const runTDDBtn = document.getElementById('runTDD');
-
-        console.log('Found buttons:', {
-            selectTestFileBtn: !!selectTestFileBtn,
-            selectImplementationFileBtn: !!selectImplementationFileBtn,
-            runTDDBtn: !!runTDDBtn,
-        });
 
         selectTestFileBtn?.addEventListener('click', () => {
             console.log('Select test file button clicked');
@@ -105,8 +114,18 @@ class TDDApp {
             console.log('Run TDD button clicked');
             this.runTDD();
         });
+
+        pauseTddCheckbox?.addEventListener('change', (e) => {
+            console.log('Pause TDD checkbox changed:', e.target.checked);
+            this.onPauseTddChange(e);
+        });
     }
 
+
+    onPauseTddChange(e) {
+        console.log('Pause TDD checkbox changed:', e.target.checked);
+        this.vscode.postMessage({type: 'setPause', pause: e.target.checked});
+    }
 
     addHistoryItem(historyItem) {
         this.history.push(historyItem);

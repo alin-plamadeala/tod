@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI TDD</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body>
@@ -34,6 +34,10 @@
 
     <div class="actions">
         <button id="runTDD" class="btn">Start TDD Session</button>
+        <label class="label">
+            <input type="checkbox" class="toggle" id="pauseCheckbox"/>
+            Pause test file watching
+        </label>
     </div>
 
     <div id="status" class="status"></div>

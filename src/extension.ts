@@ -14,6 +14,8 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
     private readonly maxIterations: number;
     private outputChannel: vscode.OutputChannel;
 
+    private paused: boolean = false;
+
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly aiService: AIService,
@@ -65,6 +67,14 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
         console.log('Webview view resolved successfully');
     }
 
+    public onPause(value: boolean) {
+        this._view?.webview.postMessage({
+            type: 'updatePauseToggle',
+            value: value
+        });
+        this.paused = value;
+    }
+
     private async handleWebviewMessage(message: any) {
         console.log('Handling message:', message);
         switch (message.type) {
@@ -79,6 +89,10 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
             case 'runTDD':
                 console.log('Running TDD process...');
                 await this.runTDDProcess(message.testFile, message.implementationFile);
+                break;
+            case 'setPause':
+                console.log('Setting pause...');
+                this.onPause(message.pause);
                 break;
             case 'requestTheme':
                 const theme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? 'dark' : 'light';
@@ -183,7 +197,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                 const filePath = event.fileName;
                 this.log('File changed:', filePath);
 
-                if (filePath === testFile) {
+                if (filePath === testFile && !this.paused) {
                     // Verify implementation file exists and is writable
                     try {
                         await vscode.workspace.fs.stat(vscode.Uri.file(implementationFile));
