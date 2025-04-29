@@ -16,6 +16,8 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
     private paused: boolean = false;
 
+    private tddWatcherDisposable: vscode.Disposable | undefined;
+
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly aiService: AIService,
@@ -90,6 +92,10 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                 console.log('Running TDD process...');
                 await this.runTDDProcess(message.testFile, message.implementationFile);
                 break;
+            case 'stopTDD':
+                console.log('Stopping TDD process...');
+                await this.stopTDDProcess();
+                break;
             case 'setPause':
                 console.log('Setting pause...');
                 this.onPause(message.pause);
@@ -152,6 +158,14 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async stopTDDProcess() {
+        this.log("Stopping TDD process");
+        if (this.tddWatcherDisposable) {
+            this.tddWatcherDisposable.dispose();
+            this.tddWatcherDisposable = undefined;
+        }
+    }
+
 
     private async runTDDProcess(
         testFile: string,
@@ -192,7 +206,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
             editor.insertSnippet(commentBlock, new vscode.Position(lastImportIndex + 1, 0));
 
 
-            const d = vscode.workspace.onDidSaveTextDocument(async (event) => {
+            this.tddWatcherDisposable = vscode.workspace.onDidSaveTextDocument(async (event) => {
                 // Check if the changed document is the test file you're interested in
                 const filePath = event.fileName;
                 this.log('File changed:', filePath);
@@ -225,10 +239,6 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
                     conversation.saveConversation();
                 }
             });
-
-            this.disposables.push(d);
-
-
         } catch (error) {
             this.log('Error in TDD process', error);
             throw error;

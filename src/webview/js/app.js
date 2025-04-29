@@ -12,15 +12,16 @@ class TDDApp {
 
     setupEventListeners() {
         // Handle button clicks
-        const selectTestFileBtn = document.getElementById('selectTestFile');
-        const selectImplementationFileBtn = document.getElementById('selectImplementationFile');
-        const runTDDBtn = document.getElementById('runTDD');
-        const pauseTddCheckbox = document.getElementById('pauseCheckbox');
+        this.selectTestFileBtn = document.getElementById('selectTestFile');
+        this.selectImplementationFileBtn = document.getElementById('selectImplementationFile');
+        this.runTDDBtn = document.getElementById('runTDD');
+        this.pauseTddCheckbox = document.getElementById('pauseCheckbox');
+
         console.log('Found buttons:', {
-            selectTestFileBtn: !!selectTestFileBtn,
-            selectImplementationFileBtn: !!selectImplementationFileBtn,
-            runTDDBtn: !!runTDDBtn,
-            pauseTddCheckbox: !!pauseTddCheckbox,
+            selectTestFileBtn: !!this.selectTestFileBtn,
+            selectImplementationFileBtn: !!this.selectImplementationFileBtn,
+            runTDDBtn: !!this.runTDDBtn,
+            pauseTddCheckbox: !!this.pauseTddCheckbox,
         });
 
 
@@ -100,22 +101,22 @@ class TDDApp {
         });
 
 
-        selectTestFileBtn?.addEventListener('click', () => {
+        this.selectTestFileBtn?.addEventListener('click', () => {
             console.log('Select test file button clicked');
             this.selectTestFile();
         });
 
-        selectImplementationFileBtn?.addEventListener('click', () => {
+        this.selectImplementationFileBtn?.addEventListener('click', () => {
             console.log('Select implementation file button clicked');
             this.selectImplementationFile();
         });
 
-        runTDDBtn?.addEventListener('click', () => {
+        this.runTDDBtn?.addEventListener('click', () => {
             console.log('Run TDD button clicked');
             this.runTDD();
         });
 
-        pauseTddCheckbox?.addEventListener('change', (e) => {
+        this.pauseTddCheckbox?.addEventListener('change', (e) => {
             console.log('Pause TDD checkbox changed:', e.target.checked);
             this.onPauseTddChange(e);
         });
@@ -177,11 +178,30 @@ class TDDApp {
         this.vscode.postMessage({type: 'selectImplementationFile'});
     }
 
+    stopTDD() {
+        console.log('Stopping TDD process');
+        this.vscode.postMessage({type: 'stopTDD'});
+        this.tddStarted = false;
+
+        if (this.runTDDBtn) {
+            this.runTDDBtn.textContent = 'Run TDD';
+        }
+
+        if (this.selectImplementationFileBtn) {
+            this.selectImplementationFileBtn.disabled = false;
+        }
+        if (this.selectTestFileBtn) {
+            this.selectTestFileBtn.disabled = false;
+        }
+    }
+
     runTDD() {
         if (this.tddStarted) {
-            this.showStatus('TDD process already started. Update your test file to initiate the code generation', 'error');
+            this.stopTDD();
+            this.showStatus('TDD process stopped.', 'info');
             return;
         }
+
         console.log('Running TDD process');
         const testFile = document.getElementById('testFile').value;
         const implementationFile = document.getElementById('implementationFile').value;
@@ -208,11 +228,20 @@ class TDDApp {
             implementationFile,
         });
 
-        this.tddStarted = true;
-        const runTDDBtn = document.getElementById('runTDD');
-        if (runTDDBtn) {
-            runTDDBtn.disabled = true;
+        if (this.selectImplementationFileBtn) {
+            this.selectImplementationFileBtn.disabled = true;
         }
+        if (this.selectTestFileBtn) {
+            this.selectTestFileBtn.disabled = true;
+        }
+
+        this.tddStarted = true;
+
+        if (this.runTDDBtn) {
+            this.runTDDBtn.textContent = 'Stop TDD';
+        }
+
+
     }
 
     showStatus(message, type = 'info') {

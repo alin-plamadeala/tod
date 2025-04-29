@@ -1,7 +1,8 @@
 {
   "name": "test-only-development",
-  "displayName": "AI-Enabled TDD",
-  "description": "AI-powered Test-Driven Development tool",
+  "displayName": "TOD - AI-Enabled TDD",
+  "description": "TOD - AI-powered Test-Driven Development tool",
+  "author": "alin-plamadeala",
   "version": "0.0.1",
   "repository": "https://github.com/alin-plamadeala/tod",
   "engines": {
@@ -107,7 +108,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package-extension": "vsce package"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

@@ -22,4 +22,4 @@ export const extractRequirementsFromTestFile = (code: string): string[] => {
 
 export const stripRequirementCommentsFromTestFile = (code: string): string => {
     return code.replace(/\/\/ REQUIREMENT: (.*)/g, '');
-}
+};
