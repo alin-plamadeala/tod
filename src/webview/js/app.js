@@ -184,7 +184,7 @@ class TDDApp {
         this.tddStarted = false;
 
         if (this.runTDDBtn) {
-            this.runTDDBtn.textContent = 'Run TDD';
+            this.runTDDBtn.textContent = 'Start TDD Session';
         }
 
         if (this.selectImplementationFileBtn) {
