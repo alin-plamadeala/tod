@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import {AIService, AIConfig,} from './services/aiService';
+import {AIService} from './services/aiService';
 import {TestService, TestResult} from './services/testService';
 import {TddConversationPrompt} from "./services/promptService";
 import {generateRequirementCommentBlockSnippet} from "./services/commentBlockService";
@@ -381,18 +381,10 @@ let provider: TDDViewProvider;
 export function activate(context: vscode.ExtensionContext) {
     console.log('Activating AI TDD extension...');
 
-    // Get AI configuration
-    const config = vscode.workspace.getConfiguration('aiTdd');
-    const aiConfig: AIConfig = {
-        model: config.get<string>('model') || 'gpt-4',
-        temperature: config.get<number>('temperature') || 0.3,
-        apiKey: config.get<string>('apiKey') || ''
-    };
-
     const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
     provider = new TDDViewProvider(
         context.extensionUri,
-        new AIService(aiConfig),
+        new AIService(),
         new TestService(workspaceRoot)
     );
 

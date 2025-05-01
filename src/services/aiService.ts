@@ -12,15 +12,14 @@ export interface AIConfig {
 export class AIService {
     private openai: OpenAI | null = null;
     private anthropic: Anthropic | null = null;
-    private config: AIConfig;
     private readonly timeout: number = 60000; // 60 seconds timeout
     private outputChannel: vscode.OutputChannel;
+    private config: AIConfig | undefined;
 
-    constructor(config: AIConfig) {
-        this.config = config;
+    constructor() {
         this.outputChannel = vscode.window.createOutputChannel('AI TDD');
         this.log('Initializing AI Service...');
-        this.initializeClients();
+        this.initialize();
     }
 
     private log(message: string, error?: any) {
@@ -32,7 +31,23 @@ export class AIService {
         }
     }
 
-    private initializeClients() {
+    private loadConfig() {
+        const config = vscode.workspace.getConfiguration('aiTdd');
+        this.config = {
+            model: config.get<string>('model') || 'gpt-4',
+            temperature: config.get<number>('temperature') || 0.3,
+            apiKey: config.get<string>('apiKey') || ''
+        };
+    }
+
+    private initialize() {
+        this.loadConfig();
+
+        if (!this.config) {
+            this.log('Error: AI configuration not loaded');
+            throw new Error('AI configuration not loaded');
+        }
+
         this.log(`Initializing AI clients with model: ${this.config.model}`);
         try {
             if (this.config.model.startsWith('gpt')) {
@@ -57,6 +72,8 @@ export class AIService {
     public async generateImplementation(
         messages: Message[]
     ): Promise<string> {
+        this.initialize();
+
         this.log(`Generating implementation with ${messages.length} message. Total content len: ${messages.reduce((acc, m) => acc + m.content.length, 0)}`);
 
         try {
@@ -83,7 +100,10 @@ export class AIService {
             this.log('Error: OpenAI client not initialized');
             throw new Error('OpenAI client not initialized');
         }
-
+        if (!this.config) {
+            this.log('Error: AI configuration not loaded');
+            throw new Error('AI configuration not loaded');
+        }
         this.log(`Making OpenAI API call with model ${this.config.model}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
@@ -123,7 +143,10 @@ export class AIService {
             this.log('Error: Anthropic client not initialized');
             throw new Error('Anthropic client not initialized');
         }
-
+        if (!this.config) {
+            this.log('Error: AI configuration not loaded');
+            throw new Error('AI configuration not loaded');
+        }
         this.log(`Making Anthropic API call with model ${this.config.model}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
