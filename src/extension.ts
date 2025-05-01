@@ -114,7 +114,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
     private async selectTestFile() {
         console.log('Finding test files...');
-        const files = await vscode.workspace.findFiles('**/*.test.*');
+        const files = await vscode.workspace.findFiles('src/**/*.test.ts', '**/node_modules/**');
         console.log('Found test files:', files);
         const fileItems = files.map(file => ({
             label: vscode.workspace.asRelativePath(file),
@@ -137,7 +137,7 @@ export class TDDViewProvider implements vscode.WebviewViewProvider {
 
     private async selectImplementationFile() {
         console.log('Finding implementation files...');
-        const files = await vscode.workspace.findFiles('**/*.ts', 'node_modules');
+        const files = await vscode.workspace.findFiles('src/**/*.ts', '{**/node_modules/**,**/example/**}');
         console.log('Found implementation files:', files);
         const fileItems = files.map(file => ({
             label: vscode.workspace.asRelativePath(file),
