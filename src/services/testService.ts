@@ -126,23 +126,22 @@ export class TestService {
                 const nodePath = config.get<string>('nodePath') || process.execPath;
                 this.log(`Using Node.js at: ${nodePath}`);
 
-                // Get vitest path
-                const vitestPath = path.join(this.workspaceRoot, 'node_modules', '.bin', 'vitest');
-                if (!fs.existsSync(vitestPath)) {
-                    this.log(`Vitest not found ${vitestPath}`);
-                    throw new Error('Vitest not found in node_modules/.bin');
+                // Get vitest entrypoint
+                const vitestEntry = path.join(this.workspaceRoot, 'node_modules', 'vitest', 'vitest.mjs');
+
+                if (!fs.existsSync(vitestEntry)) {
+                    throw new Error(`Vitest not found at ${vitestEntry}`);
                 }
 
-                this.log(`Executing command: ${nodePath} ${vitestPath} --run ${testFile}`);
-                // Spawn the process
-                const vitestProcess = spawn(nodePath, [vitestPath, '--run', testFile], {
+                this.log(`Executing command: ${nodePath} ${vitestEntry} --run ${testFile}`);
+
+                const vitestProcess = spawn(nodePath, [vitestEntry, '--run', testFile], {
                     signal: controller.signal,
                     env: {
                         ...process.env,
-                        PATH: process.env.PATH || '',
-                        NODE_PATH: path.join(this.workspaceRoot, 'node_modules')
+                        NODE_PATH: path.join(this.workspaceRoot, 'node_modules'),
                     },
-                    cwd: this.workspaceRoot
+                    cwd: this.workspaceRoot,
                 });
 
                 let output = '';
@@ -153,7 +152,9 @@ export class TestService {
                     output += data.toString();
                     this.log(`Vitest output: ${data.toString()}`);
                 });
+    
 
+  
                 vitestProcess.stderr.on('data', (data) => {
                     errorOutput += data.toString();
                     this.log(`Vitest error: ${data.toString()}`);
