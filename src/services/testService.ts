@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import {spawn} from 'child_process';
+import * as os from 'os';
 
 export interface TestResult {
     success: boolean;
@@ -127,23 +128,31 @@ export class TestService {
                 this.log(`Using Node.js at: ${nodePath}`);
 
                 // Get vitest path
-                const vitestPath = path.join(this.workspaceRoot, 'node_modules', '.bin', 'vitest');
-                if (!fs.existsSync(vitestPath)) {
-                    this.log(`Vitest not found ${vitestPath}`);
-                    throw new Error('Vitest not found in node_modules/.bin');
-                }
+                const vitestPath =
+                os.platform() === 'win32'
+                  ? path.join(this.workspaceRoot, 'node_modules', '.bin', 'vitest.cmd')
+                  : path.join(this.workspaceRoot, 'node_modules', '.bin', 'vitest');
+              
+              if (!fs.existsSync(vitestPath)) {
+                throw new Error(`Vitest not found at ${vitestPath}`);
+              }
 
-                this.log(`Executing command: ${nodePath} ${vitestPath} --run ${testFile}`);
-                // Spawn the process
-                const vitestProcess = spawn(nodePath, [vitestPath, '--run', testFile], {
-                    signal: controller.signal,
-                    env: {
-                        ...process.env,
-                        PATH: process.env.PATH || '',
-                        NODE_PATH: path.join(this.workspaceRoot, 'node_modules')
-                    },
-                    cwd: this.workspaceRoot
-                });
+              this.log(`Executing command: ${vitestPath} --run ${testFile}`);
+
+              const vitestEntry = path.join(this.workspaceRoot, 'node_modules', 'vitest', 'vitest.mjs');
+
+              if (!fs.existsSync(vitestEntry)) {
+                throw new Error(`Vitest entry point not found at ${vitestEntry}`);
+              }
+              
+              const vitestProcess = spawn(nodePath, [vitestEntry, '--run', testFile], {
+                signal: controller.signal,
+                env: {
+                  ...process.env,
+                  NODE_PATH: path.join(this.workspaceRoot, 'node_modules'),
+                },
+                cwd: this.workspaceRoot,
+              });
 
                 let output = '';
                 let errorOutput = '';
@@ -153,7 +162,9 @@ export class TestService {
                     output += data.toString();
                     this.log(`Vitest output: ${data.toString()}`);
                 });
+    
 
+  
                 vitestProcess.stderr.on('data', (data) => {
                     errorOutput += data.toString();
                     this.log(`Vitest error: ${data.toString()}`);
